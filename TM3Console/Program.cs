@@ -4,6 +4,7 @@ using System.Net.Http;
 using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 namespace TM3Console
 {
@@ -15,6 +16,8 @@ namespace TM3Console
         static string baseUrl = "https://api.refinitiv.com:443";
 
         static Token token = new Token();
+        static string FileSet = "";
+        static string modifiedSinceTime = "2025-08-12T12:00:00Z";
         static async Task Main(string[] args)
         {
 
@@ -26,14 +29,20 @@ namespace TM3Console
 
             if (!string.IsNullOrEmpty(token.AccessToken))
             {
-                Console.WriteLine("Login succeed\n\n");
-                await QueryFileSet(bucketname,package_id,token.AccessToken);
-                await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken);
+                Console.WriteLine("Login succeed");
+                FileSet = await QueryFileSet(bucketname,package_id,token.AccessToken);
+                await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
             }
 
             Console.ReadLine();
         }
-
+        /// <summary>
+        /// Send HTTP Post Authentication Request Message to RDP Authentication Service (/auth/oauth2/ endpoint)
+        /// </summary>
+        /// <param name="machineid">RDP Machine ID/Username</param>
+        /// <param name="password">RDP Password</param>
+        /// <param name="appkey">RDP App-Key</param>
+        /// <returns>RDP Token information</returns>
         private static async Task<Token> Login(string machineid, string password, string appkey)
         {
             string auth_url = $"{baseUrl}/auth/oauth2/v1/token";
@@ -77,63 +86,113 @@ namespace TM3Console
             }
             catch (HttpRequestException ex)
             {
-                Console.WriteLine($"Request HTTP error: {ex.Message}");
+                Console.WriteLine($"Request {auth_url} HTTP error: {ex.Message}");
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Request error: {e.Message}");
+                Console.WriteLine($"Request{auth_url}  error: {e.Message}");
             }
             return new Token(); // Return empty token on failure
         }
 
-        private static async Task QueryFileSet(string bucketname, string package_id, string access_token)
+        /// <summary>
+        /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100
+        /// </summary>
+        /// <param name="bucketname">bucketname (bulk-Custom for TM3)</param>
+        /// <param name="package_id">Package ID (contact your Account Manager)</param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <returns>FileSet information</returns>
+        private static async Task<string> QueryFileSet(string bucketname, string package_id, string access_token)
         {
             string queryParams = $"?bucket={bucketname}&packageId={package_id}&pageSize=100";
 
             string fileset_url = $"{baseUrl}/file-store/v1/file-sets{queryParams}";
-
-            var request = new HttpRequestMessage(HttpMethod.Get, fileset_url);
-
-            var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
-
-            Console.WriteLine("Requesting FileSet using pageSize = 100");
-            HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
-
-            if (response.IsSuccessStatusCode)
+            try
             {
-                string responseBody = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"{responseBody}\n\n");
+                var request = new HttpRequestMessage(HttpMethod.Get, fileset_url);
+
+                var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
+
+                Console.WriteLine("Requesting FileSet using pageSize = 100");
+                HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
+                    JArray fileSetsArray = (JArray)json.value; 
+                    if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
+                    {
+                        Console.WriteLine($"FileSets data (first 100 records) are {fileSetsArray}\n\n");
+                        Console.WriteLine("The File ID is in the files array. Select the one that you need.");
+                        Console.WriteLine("I am demonstrating with the first entry.");
+                        string FileSet = (string)fileSetsArray[0]["files"][0];
+                        Console.WriteLine($"The FileSet is {FileSet}\n\n");
+                        return FileSet;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                }
             }
-            else
+            catch (HttpRequestException ex)
             {
-                Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                Console.WriteLine($"Request {fileset_url} HTTP error: {ex.Message}");
             }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {fileset_url} error: {e.Message}");
+            }
+
+            return ""; //in case error or empty data
         }
 
-        private static async Task QueryFileSetModifiedSince(string bucketname, string package_id, string access_token)
+        /// <summary>
+        /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100modifiedSince=DATE_TIME_IN_GMT0
+        /// </summary>
+        /// <param name="bucketname">bucketname (bulk-Custom for TM3)</param>
+        /// <param name="package_id">Package ID (contact your Account Manager)</param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <param name="modifiedSince">Return all file-sets that have a modified date after the specified Datetime.</param>
+        /// <returns></returns>
+        private static async Task QueryFileSetModifiedSince(string bucketname, string package_id, string access_token, string modifiedSince)
         {
-            string queryParams = $"?bucket={bucketname}&packageId={package_id}&pageSize=100&modifiedSince={Uri.EscapeDataString("2025-08-12T12:00:00Z")}";
+            string queryParams = $"?bucket={bucketname}&packageId={package_id}&pageSize=100&modifiedSince={Uri.EscapeDataString(modifiedSince)}";
 
             string fileset_url = $"{baseUrl}/file-store/v1/file-sets{queryParams}";
 
-            var request = new HttpRequestMessage(HttpMethod.Get, fileset_url);
-
-            var httpClient = new HttpClient();
-            httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
-
-            Console.WriteLine("Requesting FileSet using pageSize = 100 and modifiedSince = 2025-08-12T12:00:00Z");
-            HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
-
-            if (response.IsSuccessStatusCode)
+            try
             {
-                string responseBody = await response.Content.ReadAsStringAsync();
-                Console.WriteLine($"{responseBody}\n\n");
+                var request = new HttpRequestMessage(HttpMethod.Get, fileset_url);
+
+                var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
+
+                Console.WriteLine("Requesting FileSet using pageSize = 100 and modifiedSince = 2025-08-12T12:00:00Z");
+                HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseBody = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"{responseBody}\n\n");
+                }
+                else
+                {
+                    Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                }
             }
-            else
+            catch (HttpRequestException ex)
             {
-                Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                Console.WriteLine($"Request {fileset_url} HTTP error: {ex.Message}");
             }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {fileset_url} error: {e.Message}");
+            }
+
+            
         }
     }
 }
