@@ -32,11 +32,13 @@ namespace TM3Console
             string appkey = Environment.GetEnvironmentVariable("APP_KEY") ?? "<APP_KEY>";
             package_id = Environment.GetEnvironmentVariable("PACKAGE_ID") ?? "<PACKAGE_ID>";
 
+            Console.WriteLine("### Step 1: Authentication with RDP APIs");
             token = await Login(machineid, password, appkey);
 
             if (!string.IsNullOrEmpty(token.AccessToken))
             {
                 Console.WriteLine("Login succeed");
+                Console.WriteLine("### Step 2: Listing the FileSets using the Bucket Name and Package ID and pageSize=100");
                 fileSet = await QueryFileSet(bucketname, package_id, token.AccessToken);
 
                 if (!string.IsNullOrEmpty(nextLink))
@@ -50,12 +52,23 @@ namespace TM3Console
 
                 Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
                 Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
+                Console.WriteLine("### Step 2.5: Query for specific Date using modifiedSince and pageSize=100 <-- Recommended One");
                 await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
 
                 if (!string.IsNullOrEmpty(fileSet))
                 {
-                    Console.WriteLine("### Step 3: Get the AWS S3 file URL using FileSet");
+                    Console.WriteLine("### Step 3: Get an actual file URL on the Cloud using FileSet");
                     actualURL = await QueryActualFileURL(fileSet, token.AccessToken);
+                }
+
+                if (!string.IsNullOrEmpty(actualURL))
+                {
+                    Console.WriteLine("### Step 4: Downloading the actual file from the Cloud");
+                    Console.WriteLine("Once you got an actual URL. You can download the bulk file using that URL (**as is**).");
+                    Console.WriteLine("**Do not alter or make any changes to the URL text string**");
+                    Console.WriteLine("Please do not flush download requests.");
+
+                    await DownloadFile(actualURL);
                 }
                 
             }
@@ -276,6 +289,12 @@ namespace TM3Console
             
         }
 
+        /// <summary>
+        /// end HTTP GET Request to RDP CFS API Service (/file-store/v1/files/ endpoint) with fileSet
+        /// </summary>
+        /// <param name="fileSet">file set information to get an actual file URL</param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <returns>Actual File URL on the Cloud.</returns>
         private static async Task<string> QueryActualFileURL(string fileSet, string access_token)
         {
             string file_url = $"{baseUrl}/file-store/v1/files/{fileSet}/stream?doNotRedirect=true";
@@ -316,6 +335,44 @@ namespace TM3Console
             }
 
             return string.Empty; //fail case
+        }
+
+        /// <summary>
+        /// Download the TM3 bulk file from an actual URL
+        /// </summary>
+        /// <param name="actualFileURL">actual URL of the file on the cloud</param>
+        /// <returns></returns>
+        private static async Task DownloadFile(string actualFileURL)
+        {
+            try
+            {
+                Console.WriteLine("You can choose to save that file with whatever name you want.");
+                Console.WriteLine("The actual file name is available on the Cloud URL as follows: ");
+                Console.WriteLine("https://XXXX.s3.amazonaws.com/XXX/YEAR/MONTH/DATE/{file_name}?x-request-Id={signature}");
+                Console.WriteLine("The actual file name has been replace a ```_``` (underscore) with ```%3A``` escape character, so an application need to replace it backward.");
+                // Get actual File  Name
+                string fileName = actualFileURL.Split("?")[0].Split("/")[^1].Replace("%3A", "_");
+                // File Destination part (will be on \TM3Console\bin\Debug\net8.0 folder.
+                string destinationPath = $"./{fileName}";
+
+                var httpClient = new HttpClient();
+                //Download the file
+                byte[] fileBytes = await httpClient.GetByteArrayAsync(actualFileURL);
+                await File.WriteAllBytesAsync(destinationPath, fileBytes);
+                Console.WriteLine($"Download {destinationPath} complete.");
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Request {actualFileURL} HTTP error: {ex.Message}");
+            }
+            catch(IndexOutOfRangeException ex)
+            {
+                Console.WriteLine($"Getting actual file name from {actualFileURL} error: {ex.Message}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {actualFileURL} error: {e.Message}");
+            }
         }
     }
 }
