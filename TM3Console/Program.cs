@@ -3,13 +3,14 @@ using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
+using System.Reflection.PortableExecutable;
 
 namespace TM3Console
 {
     class Program
     {
         const string bucketname = "bulk-Custom";
-        static string package_id = string.Empty;   
+        static string package_id = string.Empty;
 
         static string baseUrl = "https://api.refinitiv.com:443";
 
@@ -65,13 +66,21 @@ namespace TM3Console
 
                     await DownloadFile(actualURL);
                 }
-                
+
+                Console.WriteLine("### Step 6: Refresh Token with RDP APIs");
+                Console.Write("Before the session expires (based on the ```expires_in``` parameter, in seconds)");
+                Console.WriteLine(", an application needs to send a Refresh Grant request message to RDP Authentication service to get a new access token before further request data from the platform.");
+                Console.WriteLine("**Do not flush request message to the RDP Authentication service**");
+                token = await RefreshToken(appkey, token.AccessToken, token.RefreshToken);
+
+                //Step 7
+
             }
 
             Console.ReadLine();
         }
         /// <summary>
-        /// Send HTTP Post Authentication Request Message to RDP Authentication Service (/auth/oauth2/ endpoint)
+        /// Send HTTP Post Authentication Request Message to RDP Authentication Service (/auth/oauth2/ endpoint) for initial login
         /// </summary>
         /// <param name="machineid">RDP Machine ID/Username</param>
         /// <param name="password">RDP Password</param>
@@ -101,7 +110,7 @@ namespace TM3Console
                     Console.WriteLine($"Status Code: {(int)response.StatusCode}");
                     Console.WriteLine($"Status Text: {response.ReasonPhrase}");
                     var responseBody = await response.Content.ReadAsStringAsync();
-                    dynamic json = JsonConvert.DeserializeObject( responseBody );
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
                     return new Token
                     {
                         AccessToken = json.access_token,
@@ -159,9 +168,9 @@ namespace TM3Console
                     {
                         nextLink = json["@nextLink"];
                     }
-                    
+
                     JArray fileSetsArray = (JArray)json.value;
-                    
+
                     if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
                     {
                         Console.WriteLine($"FileSets data (first 100 records) are {fileSetsArray}\n\n");
@@ -281,7 +290,7 @@ namespace TM3Console
                 Console.WriteLine($"Request {fileset_url} error: {e.Message}");
             }
 
-            
+
         }
 
         /// <summary>
@@ -354,13 +363,13 @@ namespace TM3Console
                 //Download the file
                 byte[] fileBytes = await httpClient.GetByteArrayAsync(actualFileURL);
                 await File.WriteAllBytesAsync(destinationPath, fileBytes);
-                Console.WriteLine($"Download {destinationPath} complete.");
+                Console.WriteLine($"Download {destinationPath} complete,\n\n");
             }
             catch (HttpRequestException ex)
             {
                 Console.WriteLine($"Request {actualFileURL} HTTP error: {ex.Message}");
             }
-            catch(IndexOutOfRangeException ex)
+            catch (IndexOutOfRangeException ex)
             {
                 Console.WriteLine($"Getting actual file name from {actualFileURL} error: {ex.Message}");
             }
@@ -368,6 +377,65 @@ namespace TM3Console
             {
                 Console.WriteLine($"Request {actualFileURL} error: {e.Message}");
             }
+        }
+
+
+
+        /// <summary>
+        /// Send HTTP Post Authentication Request Message to RDP Authentication Service (/auth/oauth2/ endpoint) for refreshing a token
+        /// </summary>
+        /// <param name="appkey">RDP App-Key</param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <returns>New Token information</returns>
+        private static async Task<Token> RefreshToken(string appkey, string access_token, string refresh_token)
+        {
+            string auth_url = $"{baseUrl}/auth/oauth2/v1/token";
+            try
+            {
+                var payload = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "refresh_token", refresh_token },
+                    { "client_id", appkey },
+                    { "grant_type", "refresh_token" }
+                });
+
+                payload.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");
+                var httpclient = new HttpClient();
+                HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Status Code: {(int)response.StatusCode}");
+                    Console.WriteLine($"Status Text: {response.ReasonPhrase}");
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
+                    Console.WriteLine($"new access token = {json.access_token}");
+                    Console.WriteLine($"new refresh token = {json.refresh_token}");
+                    return new Token
+                    {
+                        AccessToken = json.access_token,
+                        RefreshToken = json.refresh_token,
+                        Expires_in = (int)json.expires_in
+                    };
+                }
+                else
+                {
+                    Console.WriteLine($"Status Code: {(int)response.StatusCode}");
+                    Console.WriteLine($"Status Text: {response.ReasonPhrase}");
+                    var error_resp = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Authen RDP Fail with {error_resp} error");
+                }
+
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Request {auth_url} HTTP error: {ex.Message}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request{auth_url}  error: {e.Message}");
+            }
+            return new Token(); // Return empty token on failure
         }
     }
 }
