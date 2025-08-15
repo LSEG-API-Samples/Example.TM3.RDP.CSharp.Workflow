@@ -19,9 +19,10 @@ namespace TM3Console
         static string baseUrl = "https://api.refinitiv.com:443";
 
         static Token token = new Token();
-        static string FileSet = string.Empty;
+        static string fileSet = string.Empty;
         static string modifiedSinceTime = "2025-08-12T12:00:00Z";
         static string nextLink = string.Empty;
+        static string actualURL = string.Empty;
         static async Task Main(string[] args)
         {
             DotNetEnv.Env.Load();
@@ -36,7 +37,7 @@ namespace TM3Console
             if (!string.IsNullOrEmpty(token.AccessToken))
             {
                 Console.WriteLine("Login succeed");
-                FileSet = await QueryFileSet(bucketname, package_id, token.AccessToken);
+                fileSet = await QueryFileSet(bucketname, package_id, token.AccessToken);
 
                 if (!string.IsNullOrEmpty(nextLink))
                 {
@@ -50,6 +51,13 @@ namespace TM3Console
                 Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
                 Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
                 await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
+
+                if (!string.IsNullOrEmpty(fileSet))
+                {
+                    Console.WriteLine("### Step 3: Get the AWS S3 file URL using FileSet");
+                    actualURL = await QueryActualFileURL(fileSet, token.AccessToken);
+                }
+                
             }
 
             Console.ReadLine();
@@ -266,6 +274,48 @@ namespace TM3Console
             }
 
             
+        }
+
+        private static async Task<string> QueryActualFileURL(string fileSet, string access_token)
+        {
+            string file_url = $"{baseUrl}/file-store/v1/files/{fileSet}/stream?doNotRedirect=true";
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, file_url);
+
+                var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
+
+                Console.WriteLine("Requesting actual file URL using FileSet");
+                HttpResponseMessage response = await httpClient.GetAsync(file_url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    string responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
+                    Console.WriteLine($"{responseBody}\n\n");
+                    if (json.ContainsKey("url"))
+                    {
+                        Console.WriteLine("The Actual File URL is in the ```url``` attribute of the response message.");
+                        Console.WriteLine($"The Actual File URL = {(string)json.url}\n\n");
+                        return (string)json.url;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Request {file_url} HTTP error: {ex.Message}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {file_url} error: {e.Message}");
+            }
+
+            return string.Empty; //fail case
         }
     }
 }
