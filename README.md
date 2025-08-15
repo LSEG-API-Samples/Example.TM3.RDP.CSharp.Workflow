@@ -33,6 +33,7 @@ The first step is to unzip or download the example project folder into a directo
     ```
 2. Open the **TM3Console.sln** solution file on Visual Studio 2022 IDE.
 3. Run the project using Visual Studio IDE.
+4. The TM3 bulk file will be downloaded to **TM3Console\bin\Debug\net8.0** folder.
 
 ### <a id="csharp_example_run"></a>Run the demo Console application with .NET CLI
 
@@ -56,3 +57,5 @@ The first step is to unzip or download the example project folder into a directo
     ```bash
     $>dotnet run
     ```
+6. The TM3 bulk file will be downloaded to **TM3Console\bin\Debug\net8.0** folder.
+
