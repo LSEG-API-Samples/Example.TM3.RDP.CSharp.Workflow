@@ -1,13 +1,8 @@
-﻿using System;
-using System.Net;
-using System.Net.Http;
+﻿
 using System.Net.Http.Headers;
-using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
-using System.Runtime.InteropServices.JavaScript;
-using System.Text.Json.Nodes;
 
 namespace TM3Console
 {
@@ -25,7 +20,7 @@ namespace TM3Console
         static string actualURL = string.Empty;
         static async Task Main(string[] args)
         {
-            DotNetEnv.Env.Load();
+            Env.Load();
 
             string machineid = Environment.GetEnvironmentVariable("MACHINE_ID") ?? "<MACHINE_ID>";
             string password = Environment.GetEnvironmentVariable("PASSWORD") ?? "<PASSWORD>";
