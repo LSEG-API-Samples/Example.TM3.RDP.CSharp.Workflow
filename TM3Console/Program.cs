@@ -5,32 +5,50 @@ using System.Net.Http.Headers;
 using System.Threading.Tasks;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using DotNetEnv;
+using System.Runtime.InteropServices.JavaScript;
+using System.Text.Json.Nodes;
 
 namespace TM3Console
 {
     class Program
     {
         const string bucketname = "bulk-Custom";
-        const string package_id = "packageId";
+        static string package_id = string.Empty;   
 
         static string baseUrl = "https://api.refinitiv.com:443";
 
         static Token token = new Token();
-        static string FileSet = "";
+        static string FileSet = string.Empty;
         static string modifiedSinceTime = "2025-08-12T12:00:00Z";
+        static string nextLink = string.Empty;
         static async Task Main(string[] args)
         {
+            DotNetEnv.Env.Load();
 
-            string machineid = "RDP MACHINEID";
-            string password = "RDP PASSWORD";
-            string appkey = "RDP APP_KEY";
+            string machineid = Environment.GetEnvironmentVariable("MACHINE_ID") ?? "<MACHINE_ID>";
+            string password = Environment.GetEnvironmentVariable("PASSWORD") ?? "<PASSWORD>";
+            string appkey = Environment.GetEnvironmentVariable("APP_KEY") ?? "<APP_KEY>";
+            package_id = Environment.GetEnvironmentVariable("PACKAGE_ID") ?? "<PACKAGE_ID>";
 
             token = await Login(machineid, password, appkey);
 
             if (!string.IsNullOrEmpty(token.AccessToken))
             {
                 Console.WriteLine("Login succeed");
-                FileSet = await QueryFileSet(bucketname,package_id,token.AccessToken);
+                FileSet = await QueryFileSet(bucketname, package_id, token.AccessToken);
+
+                if (!string.IsNullOrEmpty(nextLink))
+                {
+                    //Do Paging
+                    Console.WriteLine("Please note that the FileSets can be more than 100 records. The API returns data maximum 100 records per one query.");
+                    Console.WriteLine("If the there are more than 100 records, the API returns the ```@nextLink``` node which contains the URL for requesting the next page of query");
+                    Console.WriteLine($"@nextLink = {nextLink}\n");
+                    await QueryFileSetPaging(token.AccessToken, nextLink);
+                }
+
+                Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
+                Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
                 await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
             }
 
@@ -121,7 +139,13 @@ namespace TM3Console
                 {
                     var responseBody = await response.Content.ReadAsStringAsync();
                     dynamic json = JsonConvert.DeserializeObject(responseBody);
-                    JArray fileSetsArray = (JArray)json.value; 
+                    if (json.ContainsKey("@nextLink"))
+                    {
+                        nextLink = json["@nextLink"];
+                    }
+                    
+                    JArray fileSetsArray = (JArray)json.value;
+                    
                     if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
                     {
                         Console.WriteLine($"FileSets data (first 100 records) are {fileSetsArray}\n\n");
@@ -150,7 +174,56 @@ namespace TM3Console
         }
 
         /// <summary>
-        /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100modifiedSince=DATE_TIME_IN_GMT0
+        /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100 with Paging feature
+        /// </summary>
+        /// <param name="access_token"></param>
+        /// <param name="nextLinkURL"></param>
+        /// <returns></returns>
+        private static async Task QueryFileSetPaging(string access_token, string nextLinkURL)
+        {
+            string fileset_url = $"{baseUrl}{nextLinkURL}";
+            try
+            {
+                var request = new HttpRequestMessage(HttpMethod.Get, fileset_url);
+
+                var httpClient = new HttpClient();
+                httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
+
+                Console.WriteLine("Requesting FileSet next paging");
+                HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
+                    if (json.ContainsKey("@nextLink"))
+                    {
+                        nextLink = json["@nextLink"];
+                    }
+                    JArray fileSetsArray = (JArray)json.value;
+
+                    if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
+                    {
+                        Console.WriteLine($"FileSets data (next 100 records) are {fileSetsArray}\n\n");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Request {fileset_url} HTTP error: {ex.Message}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {fileset_url} error: {e.Message}");
+            }
+        }
+
+        /// <summary>
+        /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100&modifiedSince=DATE_TIME_IN_GMT0
         /// </summary>
         /// <param name="bucketname">bucketname (bulk-Custom for TM3)</param>
         /// <param name="package_id">Package ID (contact your Account Manager)</param>
