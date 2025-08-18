@@ -3,6 +3,8 @@ using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
+using System.Text;
+using System.Net.Http;
 using System.Reflection.PortableExecutable;
 
 namespace TM3Console
@@ -12,7 +14,7 @@ namespace TM3Console
         const string bucketname = "bulk-Custom";
         static string package_id = string.Empty;
 
-        static string baseUrl = "https://api.refinitiv.com:443";
+        const string baseUrl = "https://api.refinitiv.com:443";
 
         static Token token = new Token();
         static string fileSet = string.Empty;
@@ -67,14 +69,21 @@ namespace TM3Console
                     await DownloadFile(actualURL);
                 }
 
+                Thread.Sleep(5000); // 5,000 milliseconds = 5 seconds
                 Console.WriteLine("### Step 6: Refresh Token with RDP APIs");
                 Console.Write("Before the session expires (based on the ```expires_in``` parameter, in seconds)");
                 Console.WriteLine(", an application needs to send a Refresh Grant request message to RDP Authentication service to get a new access token before further request data from the platform.");
                 Console.WriteLine("**Do not flush request message to the RDP Authentication service**");
                 token = await RefreshToken(appkey, token.AccessToken, token.RefreshToken);
 
-                //Step 7
 
+                Thread.Sleep(5000); // 5,000 milliseconds = 5 seconds
+
+                //Step 7
+                Console.WriteLine("\n\n");    
+                Console.WriteLine("### Step 7: Revoke Token to ending the session.");
+                Console.WriteLine("This revocation mechanism allows an application to invalidate its tokens if the end-user logs out, changes identity, or exits the respective application.");
+                await RevokeToken(appkey, token.AccessToken);
             }
 
             Console.ReadLine();
@@ -91,6 +100,7 @@ namespace TM3Console
             string auth_url = $"{baseUrl}/auth/oauth2/v1/token";
             try
             {
+                // Create HTTP Post Body Payload
                 var payload = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     { "username", machineid },
@@ -101,7 +111,7 @@ namespace TM3Console
                     { "scope", "trapi" }
                 });
 
-                payload.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");
+                payload.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
                 var httpclient = new HttpClient();
                 HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
@@ -133,7 +143,7 @@ namespace TM3Console
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Request{auth_url}  error: {e.Message}");
+                Console.WriteLine($"Request {auth_url}  error: {e.Message}");
             }
             return new Token(); // Return empty token on failure
         }
@@ -363,7 +373,7 @@ namespace TM3Console
                 //Download the file
                 byte[] fileBytes = await httpClient.GetByteArrayAsync(actualFileURL);
                 await File.WriteAllBytesAsync(destinationPath, fileBytes);
-                Console.WriteLine($"Download {destinationPath} complete,\n\n");
+                Console.WriteLine($"Download {destinationPath} complete.\n\n");
             }
             catch (HttpRequestException ex)
             {
@@ -392,6 +402,7 @@ namespace TM3Console
             string auth_url = $"{baseUrl}/auth/oauth2/v1/token";
             try
             {
+                // Create HTTP Post Body Payload
                 var payload = new FormUrlEncodedContent(new Dictionary<string, string>
                 {
                     { "refresh_token", refresh_token },
@@ -399,7 +410,7 @@ namespace TM3Console
                     { "grant_type", "refresh_token" }
                 });
 
-                payload.Headers.ContentType = new System.Net.Http.Headers.MediaTypeHeaderValue("application/x-www-form-urlencoded");
+                payload.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
                 var httpclient = new HttpClient();
                 HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
@@ -433,9 +444,68 @@ namespace TM3Console
             }
             catch (Exception e)
             {
-                Console.WriteLine($"Request{auth_url}  error: {e.Message}");
+                Console.WriteLine($"Request {auth_url}  error: {e.Message}");
             }
             return new Token(); // Return empty token on failure
+        }
+
+
+        /// <summary>
+        /// Send HTTP Post Request Message to RDP Authentication Service (/auth/oauth2/v1/revoke endpoint) for revoking access token
+        /// </summary>
+        /// <param name="appkey">RDP App-Key</param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <returns></returns>
+        private static async Task RevokeToken(string appkey, string access_token)
+        {
+            
+
+            // Prepare URL and payload
+            string auth_url = $"{baseUrl}/auth/oauth2/v1/revoke";
+            
+            try
+            {
+               
+                string password = String.Empty; //Empty String Password
+                string credentials = $"{appkey}:{password}";
+                string base64EncodedCredentials = Convert.ToBase64String(Encoding.ASCII.GetBytes(credentials));
+
+                // Create HTTP Post Body Payload
+                var payload = new FormUrlEncodedContent(new Dictionary<string, string>
+                {
+                    { "token", access_token }
+                });
+
+                payload.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
+
+                var httpclient = new HttpClient();
+
+                httpclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64EncodedCredentials);
+
+                HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
+
+                if (response.IsSuccessStatusCode)
+                {
+                    Console.WriteLine($"Status Code: {(int)response.StatusCode}");
+                    Console.WriteLine($"Status Text: {response.ReasonPhrase}");
+                    Console.WriteLine("Revoke Access Token success");
+                }
+                else
+                {
+                    Console.WriteLine($"Status Code: {(int)response.StatusCode}");
+                    Console.WriteLine($"Status Text: {response.ReasonPhrase}");
+                    var error_resp = await response.Content.ReadAsStringAsync();
+                    Console.WriteLine($"Revoke RDP Token Fail with {error_resp} error");
+                }
+            }
+            catch (HttpRequestException ex)
+            {
+                Console.WriteLine($"Request {auth_url} HTTP error: {ex.Message}");
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine($"Request {auth_url}  error: {e.Message}");
+            }
         }
     }
 }

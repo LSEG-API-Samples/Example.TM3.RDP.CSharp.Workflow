@@ -58,7 +58,3 @@ The first step is to unzip or download the example project folder into a directo
     $>dotnet run
     ```
 6. The TM3 bulk file will be downloaded to **TM3Console\bin\Debug\net8.0** folder.
-
-### To Do Next
-
-- Add Revoke Token Logic
