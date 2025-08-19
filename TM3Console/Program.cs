@@ -1,11 +1,18 @@
 ﻿
+/*|-----------------------------------------------------------------------------
+ *|            This source code is provided under the MIT license
+ *|  and is provided AS IS with no warranty or guarantee of fit for purpose.
+ *|                See the project's LICENSE.md for details.
+ *|           Copyright (C) 2019-2025 LSEG. All rights reserved.
+ *|-----------------------------------------------------------------------------
+ */
+
 using System.Net.Http.Headers;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
 using DotNetEnv;
 using System.Text;
 using System.Net.Http;
-using System.Reflection.PortableExecutable;
 
 namespace TM3Console
 {

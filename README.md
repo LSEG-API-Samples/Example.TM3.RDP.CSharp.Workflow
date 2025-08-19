@@ -6,6 +6,12 @@
 Example Code Disclaimer:
 ALL EXAMPLE CODE IS PROVIDED ON AN “AS IS” AND “AS AVAILABLE” BASIS FOR ILLUSTRATIVE PURPOSES ONLY. LSEG MAKES NO REPRESENTATIONS OR WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, AS TO THE OPERATION OF THE EXAMPLE CODE, OR THE INFORMATION, CONTENT, OR MATERIALS USED IN CONNECTION WITH THE EXAMPLE CODE. YOU EXPRESSLY AGREE THAT YOUR USE OF THE EXAMPLE CODE IS AT YOUR SOLE RISK.
 
+## Introduction 
+
+This example demonstrates how to use C# to retrieve the Municipal Market Monitor (TM3) bulk file via the [Delivery Platform](https://developers.lseg.com/en/api-catalog/refinitiv-data-platform/refinitiv-data-platform-apis)—also known as the Data Platform or RDP using the Client File Store (CFS) API service.
+
+Please note that this code is intended for demonstration purposes only and is not optimized for production use.
+
 ## <a id="prerequisite"></a> Prerequisite
 
 This example requires the following dependencies.
