@@ -311,7 +311,7 @@ namespace TM3Console
         }
 
         /// <summary>
-        /// end HTTP GET Request to RDP CFS API Service (/file-store/v1/files/ endpoint) with fileSet
+        /// Send HTTP GET Request to RDP CFS API Service (/file-store/v1/files/ endpoint) with fileSet
         /// </summary>
         /// <param name="fileSet">file set information to get an actual file URL</param>
         /// <param name="access_token">Access Token (from RDP Authentication)</param>
