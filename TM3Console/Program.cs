@@ -218,8 +218,8 @@ namespace TM3Console
         /// <summary>
         /// Send HTTP GET Request to RDP CFS API Service (/file-store/ endpoint) with pageSize=100 with Paging feature
         /// </summary>
-        /// <param name="access_token"></param>
-        /// <param name="nextLinkURL"></param>
+        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <param name="nextLinkURL">The nextLink URL from the /file-store/ response message</param>
         /// <returns></returns>
         private static async Task QueryFileSetPaging(string access_token, string nextLinkURL)
         {
