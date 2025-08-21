@@ -37,14 +37,22 @@ namespace TM3Console
             string appkey = Environment.GetEnvironmentVariable("APP_KEY") ?? "<APP_KEY>";
             package_id = Environment.GetEnvironmentVariable("PACKAGE_ID") ?? "<PACKAGE_ID>";
 
+            // Step 1
             Console.WriteLine("### Step 1: Authentication with RDP APIs");
             token = await Login(machineid, password, appkey);
 
             if (!string.IsNullOrEmpty(token.AccessToken))
             {
                 Console.WriteLine("Login succeed");
-                Console.WriteLine("### Step 2: Listing the FileSets using the Bucket Name and Package ID and pageSize=100");
-                fileSet = await QueryFileSet(bucketname, package_id, token.AccessToken);
+                //Step 2
+                Console.WriteLine("### Step 2: Query for specific Date using modifiedSince and pageSize=100 to limit data return<-- Recommended One");
+                Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
+                Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
+                Console.WriteLine("### Step 2.5: Query for specific Date using modifiedSince and pageSize=100 <-- Recommended One");
+                fileSet = await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
+
+                Console.WriteLine("### Step 2.5: Or you can listing the 100 records of the FileSets using the Bucket Name and Package ID and pageSize=100");
+                await QueryFileSet(bucketname, package_id, token.AccessToken);
 
                 if (!string.IsNullOrEmpty(nextLink))
                 {
@@ -55,17 +63,14 @@ namespace TM3Console
                     await QueryFileSetPaging(token.AccessToken, nextLink);
                 }
 
-                Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
-                Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
-                Console.WriteLine("### Step 2.5: Query for specific Date using modifiedSince and pageSize=100 <-- Recommended One");
-                await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
-
+                //Step 3
                 if (!string.IsNullOrEmpty(fileSet))
                 {
                     Console.WriteLine("### Step 3: Get an actual file URL on the Cloud using FileSet");
                     actualURL = await QueryActualFileURL(fileSet, token.AccessToken);
                 }
 
+                //Step 4
                 if (!string.IsNullOrEmpty(actualURL))
                 {
                     Console.WriteLine("### Step 4: Downloading the actual file from the Cloud");
@@ -76,19 +81,20 @@ namespace TM3Console
                     await DownloadFile(actualURL);
                 }
 
+                //Step 5
                 Thread.Sleep(5000); // 5,000 milliseconds = 5 seconds
-                Console.WriteLine("### Step 6: Refresh Token with RDP APIs");
-                Console.Write("Before the session expires (based on the ```expires_in``` parameter, in seconds)");
+                Console.WriteLine("### Step 5: Refresh Token with RDP APIs");
+                Console.Write($"Before the session expires (based on the ```expires_in``` value({token.Expires_in}) parameter, in seconds)");
                 Console.WriteLine(", an application needs to send a Refresh Grant request message to RDP Authentication service to get a new access token before further request data from the platform.");
                 Console.WriteLine("**Do not flush request message to the RDP Authentication service**");
-                token = await RefreshToken(appkey, token.AccessToken, token.RefreshToken);
+                token = await RefreshToken(appkey, token.RefreshToken);
 
 
                 Thread.Sleep(5000); // 5,000 milliseconds = 5 seconds
 
-                //Step 7
+                //Step 6
                 Console.WriteLine("\n\n");    
-                Console.WriteLine("### Step 7: Revoke Token to ending the session.");
+                Console.WriteLine("### Step 6: Revoke Token to ending the session.");
                 Console.WriteLine("This revocation mechanism allows an application to invalidate its tokens if the end-user logs out, changes identity, or exits the respective application.");
                 await RevokeToken(appkey, token.AccessToken);
             }
@@ -162,7 +168,7 @@ namespace TM3Console
         /// <param name="package_id">Package ID (contact your Account Manager)</param>
         /// <param name="access_token">Access Token (from RDP Authentication)</param>
         /// <returns>FileSet information</returns>
-        private static async Task<string> QueryFileSet(string bucketname, string package_id, string access_token)
+        private static async Task QueryFileSet(string bucketname, string package_id, string access_token)
         {
             string queryParams = $"?bucket={bucketname}&packageId={package_id}&pageSize=100";
 
@@ -186,22 +192,13 @@ namespace TM3Console
                         nextLink = json["@nextLink"];
                     }
 
-                    JArray fileSetsArray = (JArray)json.value;
-
-                    if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
-                    {
-                        Console.WriteLine($"FileSets data (first 100 records) are {fileSetsArray}\n\n");
-                        Console.WriteLine("The File ID is in the files array. Select the one that you need.");
-                        Console.WriteLine("I am demonstrating with the first entry.");
-                        string FileSet = (string)fileSetsArray[0]["files"][0];
-                        Console.WriteLine($"The FileSet is {FileSet}\n\n");
-                        return FileSet;
-                    }
+                    Console.WriteLine($"{responseBody}\n\n");
                 }
                 else
                 {
                     Console.WriteLine($"Error: {(int)response.StatusCode} - {response.ReasonPhrase}");
                 }
+
             }
             catch (HttpRequestException ex)
             {
@@ -211,8 +208,6 @@ namespace TM3Console
             {
                 Console.WriteLine($"Request {fileset_url} error: {e.Message}");
             }
-
-            return ""; //in case error or empty data
         }
 
         /// <summary>
@@ -262,6 +257,7 @@ namespace TM3Console
             {
                 Console.WriteLine($"Request {fileset_url} error: {e.Message}");
             }
+            
         }
 
         /// <summary>
@@ -271,8 +267,8 @@ namespace TM3Console
         /// <param name="package_id">Package ID (contact your Account Manager)</param>
         /// <param name="access_token">Access Token (from RDP Authentication)</param>
         /// <param name="modifiedSince">Return all file-sets that have a modified date after the specified Datetime.</param>
-        /// <returns></returns>
-        private static async Task QueryFileSetModifiedSince(string bucketname, string package_id, string access_token, string modifiedSince)
+        /// <returns>FileSet information</returns>
+        private static async Task<string> QueryFileSetModifiedSince(string bucketname, string package_id, string access_token, string modifiedSince)
         {
             string queryParams = $"?bucket={bucketname}&packageId={package_id}&pageSize=100&modifiedSince={Uri.EscapeDataString(modifiedSince)}";
 
@@ -285,13 +281,29 @@ namespace TM3Console
                 var httpClient = new HttpClient();
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
 
-                Console.WriteLine("Requesting FileSet using pageSize = 100 and modifiedSince = 2025-08-12T12:00:00Z");
+                Console.WriteLine($"Requesting FileSet using pageSize = 100 and modifiedSince = {modifiedSince}");
                 HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
 
                 if (response.IsSuccessStatusCode)
                 {
-                    string responseBody = await response.Content.ReadAsStringAsync();
-                    Console.WriteLine($"{responseBody}\n\n");
+                    var responseBody = await response.Content.ReadAsStringAsync();
+                    dynamic json = JsonConvert.DeserializeObject(responseBody);
+                    if (json.ContainsKey("@nextLink"))
+                    {
+                        nextLink = json["@nextLink"];
+                    }
+
+                    JArray fileSetsArray = (JArray)json.value;
+
+                    if (fileSetsArray != null || !fileSetsArray.Any()) //file Return data is not empty
+                    {
+                        Console.WriteLine($"FileSets data since {modifiedSince} are {fileSetsArray}\n\n");
+                        Console.WriteLine("The File ID is in the files array. Select the one that you need.");
+                        Console.WriteLine("I am demonstrating with the first entry.");
+                        string FileSet = (string)fileSetsArray[0]["files"][0];
+                        Console.WriteLine($"The FileSet is {FileSet}\n\n");
+                        return FileSet;
+                    }
                 }
                 else
                 {
@@ -307,7 +319,7 @@ namespace TM3Console
                 Console.WriteLine($"Request {fileset_url} error: {e.Message}");
             }
 
-
+            return ""; //in case error or empty data
         }
 
         /// <summary>
@@ -402,9 +414,9 @@ namespace TM3Console
         /// Send HTTP Post Authentication Request Message to RDP Authentication Service (/auth/oauth2/ endpoint) for refreshing a token
         /// </summary>
         /// <param name="appkey">RDP App-Key</param>
-        /// <param name="access_token">Access Token (from RDP Authentication)</param>
+        /// <param name="refresh_token">Refresh Token (from RDP Authentication)</param>
         /// <returns>New Token information</returns>
-        private static async Task<Token> RefreshToken(string appkey, string access_token, string refresh_token)
+        private static async Task<Token> RefreshToken(string appkey, string refresh_token)
         {
             string auth_url = $"{baseUrl}/auth/oauth2/v1/token";
             try
@@ -425,10 +437,12 @@ namespace TM3Console
                 {
                     Console.WriteLine($"Status Code: {(int)response.StatusCode}");
                     Console.WriteLine($"Status Text: {response.ReasonPhrase}");
+                    Console.WriteLine("Refresh Token succeed");
                     var responseBody = await response.Content.ReadAsStringAsync();
                     dynamic json = JsonConvert.DeserializeObject(responseBody);
                     Console.WriteLine($"new access token = {json.access_token}");
                     Console.WriteLine($"new refresh token = {json.refresh_token}");
+                    Console.WriteLine($"new expires_in = {(int)json.expires_in}");
                     return new Token
                     {
                         AccessToken = json.access_token,
