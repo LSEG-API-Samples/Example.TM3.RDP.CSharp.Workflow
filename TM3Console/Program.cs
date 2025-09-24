@@ -48,11 +48,11 @@ namespace TM3Console
                 Console.WriteLine("### Step 2: Query for specific Date using modifiedSince and pageSize=100 to limit data return<-- Recommended One");
                 Console.WriteLine("The ```modifiedSince``` parameter can help an application to limit the returned File-Set only for the File-Set that has been modified after a specified time. ");
                 Console.WriteLine("It is recommended to call the endpoint with ```pageSize=100``` and ```modifiedSince``` parameters as follows:\n");
-                Console.WriteLine("### Step 2.5: Query for specific Date using modifiedSince and pageSize=100 <-- Recommended One");
                 fileSet = await QueryFileSetModifiedSince(bucketname, package_id, token.AccessToken, modifiedSinceTime);
 
-                Console.WriteLine("### Step 2.5: Or you can listing the 100 records of the FileSets using the Bucket Name and Package ID and pageSize=100");
-                await QueryFileSet(bucketname, package_id, token.AccessToken);
+                // Optional
+                //Console.WriteLine("### Step 2.5: Or you can listing the 100 records of the FileSets using the Bucket Name and Package ID and pageSize=100");
+                //await QueryFileSet(bucketname, package_id, token.AccessToken);
 
                 if (!string.IsNullOrEmpty(nextLink))
                 {
