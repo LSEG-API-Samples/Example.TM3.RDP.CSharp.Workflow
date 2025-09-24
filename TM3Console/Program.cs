@@ -25,7 +25,7 @@ namespace TM3Console
 
         static Token token = new Token();
         static string fileSet = string.Empty;
-        static string modifiedSinceTime = "2025-08-12T12:00:00Z";
+        static string modifiedSinceTime = "2025-09-12T12:00:00Z";
         static string nextLink = string.Empty;
         static string actualURL = string.Empty;
         static async Task Main(string[] args)
