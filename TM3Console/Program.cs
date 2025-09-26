@@ -126,6 +126,7 @@ namespace TM3Console
 
                 payload.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
                 var httpclient = new HttpClient();
+                // Send HTTP Post Message
                 HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
                 if (response.IsSuccessStatusCode)
@@ -181,6 +182,7 @@ namespace TM3Console
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
 
                 Console.WriteLine("Requesting FileSet using pageSize = 100");
+                // Send HTTP GET Message
                 HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
 
                 if (response.IsSuccessStatusCode)
@@ -227,6 +229,7 @@ namespace TM3Console
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
 
                 Console.WriteLine("Requesting FileSet next paging");
+                // Send HTTP GET Message
                 HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
 
                 if (response.IsSuccessStatusCode)
@@ -282,6 +285,7 @@ namespace TM3Console
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
 
                 Console.WriteLine($"Requesting FileSet using pageSize = 100 and modifiedSince = {modifiedSince}");
+                // Send HTTP GET Message
                 HttpResponseMessage response = await httpClient.GetAsync(fileset_url);
 
                 if (response.IsSuccessStatusCode)
@@ -339,6 +343,7 @@ namespace TM3Console
                 httpClient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Bearer", access_token);
 
                 Console.WriteLine("Requesting actual file URL using FileSet");
+                // Send HTTP GET Message
                 HttpResponseMessage response = await httpClient.GetAsync(file_url);
 
                 if (response.IsSuccessStatusCode)
@@ -431,6 +436,7 @@ namespace TM3Console
 
                 payload.Headers.ContentType = new MediaTypeHeaderValue("application/x-www-form-urlencoded");
                 var httpclient = new HttpClient();
+                // Send HTTP Post Message
                 HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
                 if (response.IsSuccessStatusCode)
@@ -502,7 +508,7 @@ namespace TM3Console
                 var httpclient = new HttpClient();
 
                 httpclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64EncodedCredentials);
-
+                // Send HTTP POST Message
                 HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
                 if (response.IsSuccessStatusCode)
