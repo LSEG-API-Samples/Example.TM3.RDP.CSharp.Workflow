@@ -509,7 +509,7 @@ namespace TM3Console
 
                 httpclient.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", base64EncodedCredentials);
                 // Send HTTP POST Message
-                HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
+a                HttpResponseMessage response = await httpclient.PostAsync(auth_url, payload);
 
                 if (response.IsSuccessStatusCode)
                 {
